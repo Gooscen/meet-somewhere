@@ -1,0 +1,23 @@
+{
+  "pages": [
+    "pages/home/index",
+    "pages/create/index",
+    "pages/meeting/index",
+    "pages/profile/index",
+    "pages/candidates/index",
+    "pages/candidate/index",
+    "pages/compare/index",
+    "pages/decision/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "哪儿见",
+    "navigationBarBackgroundColor": "#F4F3F1",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#F4F3F1"
+  },
+  "style": "v2",
+  "permission": {
+    "scope.userLocation": { "desc": "用于你主动选择出发地或散场后目的地，计算本次聚会路线" }
+  },
+  "requiredPrivateInfos": ["chooseLocation"]
+}

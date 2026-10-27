@@ -1,0 +1,24 @@
+<view class="page">
+  <view class="eyebrow">一起选地点</view><view class="hero">候选餐厅</view><view class="sub page-intro">每人都可以添加候选，看看大家的意向与往返路线。</view>
+  <view wx:if="{{meeting && meeting.status === 'collecting'}}" class="feature-card"><view class="mini-label">ADD A PLACE</view><view class="feature-title"><view>有想去的店？</view><view>提出来一起看看。</view></view><button class="button" bindtap="toggleAdd">{{adding ? '收起添加表单' : '＋ 添加候选餐厅'}}</button></view>
+  <view wx:if="{{adding}}" class="card">
+    <view class="card-title">手动添加餐厅</view>
+    <text class="label">地点名称</text><input class="field" placeholder="例如 巷口小馆" value="{{name}}" data-field="name" bindinput="input" maxlength="80" />
+    <text class="label">地图位置</text><view class="field">{{location ? location.name : '尚未选择'}}</view><button class="button secondary" bindtap="choose">搜索地点 / 地图选点</button>
+    <text class="label">人均价格范围</text><view class="row"><input class="field" type="number" placeholder="最低" value="{{priceMin}}" data-field="priceMin" bindinput="input" /><text>至</text><input class="field" type="number" placeholder="最高" value="{{priceMax}}" data-field="priceMax" bindinput="input" /></view>
+    <text class="label">菜系（可选）</text><input class="field" value="{{cuisine}}" data-field="cuisine" bindinput="input" maxlength="60" />
+    <text class="label">备注（可选）</text><textarea class="field textarea" value="{{note}}" data-field="note" bindinput="input" maxlength="240" />
+    <text class="label">来源链接（可选）</text><input class="field" value="{{sourceUrl}}" data-field="sourceUrl" bindinput="input" maxlength="240" />
+    <text class="label">信息核实状态</text><view class="row-wrap"><view class="chip {{infoStatus === 'verified' ? 'active' : ''}}" data-value="verified" bindtap="select">已核实</view><view class="chip {{infoStatus === 'pending' ? 'active' : ''}}" data-value="pending" bindtap="select">待核实</view><view class="chip {{infoStatus === 'missing' ? 'active' : ''}}" data-value="missing" bindtap="select">未提供</view></view>
+    <button class="button" loading="{{saving}}" bindtap="save">添加地点</button>
+  </view>
+  <view class="section-head"><view class="section-title">大家提议的地点</view><view class="section-meta">{{candidates.length}} 家</view></view>
+  <view wx:if="{{!candidates.length}}" class="empty">还没有候选餐厅。可以先添加一家喜欢的店。</view>
+  <view wx:for="{{candidates}}" wx:key="_id" class="card" data-id="{{item._id}}" bindtap="open">
+    <view class="list-card"><view class="list-icon">🍴</view><view class="list-body"><view class="list-title">{{item.name}}</view><view class="list-meta">人均 {{item.priceLabel}} · {{item.cuisine || '菜系未提供'}}</view></view><text class="list-arrow">›</text></view>
+    <view class="row-wrap"><text class="status-pill {{item.active ? 'orange' : 'gray'}}">{{item.active ? '正在考虑' : '不再考虑'}}</text><text class="status-pill">{{item.wantCount}} 人想去</text></view>
+    <view class="summary-line muted">{{item.distribution.cannot}} 人不方便 · {{item.distribution.unrated}} 人未评价</view>
+    <view class="summary-line muted">{{item.routeLabel}}</view><view wx:if="{{item.infoStatus !== 'verified'}}" class="hint">{{item.infoStatus === 'pending' ? '价格/营业信息待核实' : '价格/营业信息未提供'}}</view>
+    <view class="divider"></view><view class="row"><text>{{item.myRating ? '已评价，可修改' : '尚未评价'}}</text><text>查看与评价 ›</text></view>
+  </view>
+</view>

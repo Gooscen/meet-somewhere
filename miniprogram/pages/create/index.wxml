@@ -1,0 +1,16 @@
+<view class="page">
+  <view class="eyebrow">{{editingId ? '更新聚会安排' : '新的朋友聚餐'}}</view><view class="hero">{{editingId ? '编辑聚会' : '发起聚会'}}</view><view class="sub page-intro">先定一个时间和预算，再邀请朋友一起商量地点。</view>
+  <view class="card">
+    <view class="mini-label">GATHERING DETAILS</view>
+    <text class="label">聚会名称</text><input class="field" placeholder="例如 周六朋友晚餐" value="{{title}}" data-field="title" bindinput="input" maxlength="60" />
+    <text class="label">日期</text><picker mode="date" value="{{date}}" data-field="date" bindchange="pick"><view class="field">{{date || '选择日期'}}</view></picker>
+    <text class="label">开始时间</text><picker mode="time" value="{{startTime}}" data-field="startTime" bindchange="pick"><view class="field">{{startTime}}</view></picker>
+    <text class="label">预计散场时间</text><picker mode="time" value="{{endTime}}" data-field="endTime" bindchange="pick"><view class="field">{{endTime}}（早于开始时间时按次日计算）</view></picker>
+    <text class="label">其他候选时段（可选）</text><input class="field" placeholder="例如 周日午餐也可以" value="{{alternativeTime}}" data-field="alternativeTime" bindinput="input" maxlength="100" />
+    <text class="label">人均预算（可选）</text><view class="row"><input class="field" type="number" placeholder="最低" value="{{budgetMin}}" data-field="budgetMin" bindinput="input" /><text>至</text><input class="field" type="number" placeholder="最高" value="{{budgetMax}}" data-field="budgetMax" bindinput="input" /></view>
+    <text class="label">回应截止日期</text><picker mode="date" value="{{deadlineDate}}" data-field="deadlineDate" bindchange="pick"><view class="field">{{deadlineDate || '不设置'}}</view></picker>
+    <text class="label">回应截止时间</text><picker mode="time" value="{{deadlineTime}}" data-field="deadlineTime" bindchange="pick"><view class="field">{{deadlineTime}}</view></picker>
+  </view>
+  <button class="button" loading="{{saving}}" bindtap="save">{{editingId ? '保存修改' : '创建并邀请成员'}}</button>
+  <view class="sub">候选餐厅可在创建后补充。预计散场时间用于估算回程。</view>
+</view>

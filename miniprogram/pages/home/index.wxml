@@ -1,0 +1,23 @@
+<view class="page">
+  <view class="topline"><view class="brand"><view class="brand-mark">见</view><text>哪儿见</text></view><text class="mini-label">MEET SOMEWHERE</text></view>
+  <view class="eyebrow">朋友聚餐 · 一起决定</view>
+  <view class="hero"><view>下次聚会，</view><view>在哪儿见？</view></view>
+  <view class="sub">把时间、路程和大家的想法放在一起，轻松选个合适的地方。</view>
+  <view class="feature-card">
+    <view class="mini-label">START A GATHERING</view>
+    <view class="feature-title"><view>一场好聚会，</view><view>从商量开始。</view></view>
+    <view class="sub">发起朋友聚餐，邀请大家一起选餐厅。</view>
+    <button class="button" bindtap="create">＋ 发起聚会</button>
+  </view>
+  <view wx:if="{{!configured}}" class="hint">请先在 config.js 填写云环境 ID，并部署云函数。配置方法见 README.md。</view>
+  <view class="metric-strip">
+    <view class="metric"><view class="metric-number">{{activeCount}}</view><view class="metric-label">正在进行</view></view>
+    <view class="metric"><view class="metric-number">{{confirmingCount}}</view><view class="metric-label">等待最终确认</view></view>
+  </view>
+  <view class="section-head"><view class="section-title">我参与的聚会</view><view class="section-meta">{{meetings.length}} 场</view></view>
+  <view wx:if="{{loading}}" class="empty">正在加载…</view>
+  <view wx:elif="{{!meetings.length}}" class="empty">还没有聚会。可以先发起一场，或通过朋友分享的入口加入。</view>
+  <view wx:for="{{meetings}}" wx:key="_id" class="card" data-id="{{item._id}}" bindtap="open">
+    <view class="list-card"><view class="list-icon">🍽️</view><view class="list-body"><view class="list-title">{{item.title}}</view><view class="list-meta">{{item.dateLabel}}</view><view class="row"><text class="status-pill {{item.statusClass}}">{{item.statusLabel}}</text><text class="muted">{{item.isOrganizer ? '我发起的' : '我参与的'}}</text></view></view><text class="list-arrow">›</text></view>
+  </view>
+</view>

@@ -1,0 +1,32 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="empty">正在加载聚会…</view>
+  <view wx:elif="{{invite}}">
+    <view class="eyebrow">朋友邀请</view><view class="hero"><view>一起商量，</view><view>在哪儿见？</view></view>
+    <view class="card accent-card"><view class="mini-label">聚会邀请</view><view class="card-title">{{invite.title}}</view><view>{{invite.dateLabel}}</view><view class="muted">加入后可以填写时间与路线，参与选餐厅。</view></view>
+    <view wx:if="{{invite.status === 'closed'}}" class="hint">本次聚会已结束，无法加入。</view>
+    <view wx:else class="card"><text class="label">加入时显示的称呼</text><input class="field" placeholder="例如 小林" value="{{joinName}}" bindinput="inputName" maxlength="24" /><button class="button" bindtap="join">加入聚会</button></view>
+  </view>
+  <view wx:elif="{{data}}">
+    <view class="eyebrow">聚会详情</view><view class="hero">{{data.meeting.title}}</view>
+    <view class="page-intro"><text class="status-pill {{data.meeting.status === 'collecting' ? 'orange' : data.meeting.status === 'closed' ? 'gray' : ''}}">{{data.meeting.stageLabel}}</text></view>
+    <view class="card">
+      <view class="mini-label">GATHERING PLAN</view><view class="card-title">这次聚餐安排</view>
+      <view class="summary-line"><text class="muted">开始时间</text>{{data.meeting.startsLabel}}</view>
+      <view class="summary-line"><text class="muted">预计散场</text>{{data.meeting.endsLabel}}</view>
+      <view wx:if="{{data.meeting.alternativeTime}}" class="summary-line"><text class="muted">其他候选时段</text>{{data.meeting.alternativeTime}}</view>
+      <view class="summary-line"><text class="muted">人均预算</text>{{data.meeting.budgetLabel}}</view>
+      <view class="summary-line"><text class="muted">回应截止</text>{{data.meeting.deadlineLabel}}</view>
+    </view>
+    <view class="card"><view class="row"><view><view class="mini-label">REPLIES</view><view class="card-title">大家的回复</view></view><view class="metric-number">{{data.counts.completed}}<text class="muted"> / {{data.counts.members}}</text></view></view><view class="progress-track"><view class="progress-fill" style="width: {{progressPercent}}%;"></view></view><view class="muted">{{data.counts.unanswered}} 人尚未回复时间；未回复不视为有空。</view></view>
+    <view wx:if="{{data.meeting.status !== 'closed'}}">
+      <view class="section-head"><view class="section-title">接下来做什么</view></view>
+      <view class="card"><button class="button" bindtap="profile">填写或修改我的信息</button><button class="button secondary" bindtap="candidates">候选餐厅（{{data.candidates.length}}）与评价</button><button wx:if="{{data.isOrganizer}}" class="button secondary" bindtap="compare">进入组织者比较台</button><button wx:if="{{data.meeting.selectedCandidateId}}" class="button dark" bindtap="decision">查看地点并确认参加</button><button class="button light" open-type="share">分享邀请给朋友</button></view>
+    </view>
+    <view wx:if="{{data.meeting.selectedCandidateId}}" class="card accent-card"><view class="mini-label">SELECTED RESTAURANT</view><view class="card-title">已选定：{{selectedName}}</view><view>{{data.meeting.decisionNote}}</view><view class="hint">此前的地点意向不代表参加承诺，请单独确认。</view></view>
+    <view class="section-head"><view class="section-title">参与成员</view><view class="section-meta">{{data.counts.members}} 人</view></view>
+    <view class="card"><view wx:for="{{data.members}}" wx:key="index" class="row"><view><view>{{item.displayName}} · {{item.informationComplete ? '已回复时间' : '未回复时间'}}</view><view wx:if="{{data.meeting.alternativeTime}}" class="muted">候选时段：{{item.alternativeAvailability === 'yes' ? '可以' : item.alternativeAvailability === 'no' ? '不可以' : '未回复'}}</view><view wx:if="{{data.isOrganizer && item.availableTimeNote}}" class="muted">其他可参加时段：{{item.availableTimeNote}}</view><view wx:if="{{item.departureName}}" class="muted">出发地：{{item.departureName}}</view><view wx:if="{{item.returnName}}" class="muted">散场后：{{item.returnName}}</view></view><text wx:if="{{data.meeting.selectedCandidateId}}" class="muted">{{item.finalAttendance === 'yes' ? '参加' : item.finalAttendance === 'no' ? '不参加' : item.finalAttendance === 'maybe' ? '待定' : '未确认'}}</text></view></view>
+    <view wx:if="{{data.isOrganizer && data.meeting.status === 'collecting'}}"><button class="button light" bindtap="edit">编辑聚会时间与预算</button><button class="button light" bindtap="close">结束聚会并关闭位置共享</button></view>
+    <view wx:if="{{data.isOrganizer && data.meeting.status === 'confirming'}}"><button class="button light" bindtap="close">结束聚会并关闭位置共享</button></view>
+    <view wx:if="{{data.meeting.status === 'closed'}}" class="hint">本次位置共享已关闭，精确起终点与个人限制已清除。</view>
+  </view>
+</view>
