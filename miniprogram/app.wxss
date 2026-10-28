@@ -57,3 +57,7 @@ page { background: #f4f3f1; color: #191919; font-size: 28rpx; }
 .accent-card { background: #eaf4e9; }
 .dark-card { background: #24211f; color: #fff; }
 .dark-card .muted { color: #c8c0b8; }
+
+/* Native inputs need an explicit content height: padding otherwise clips text. */
+input.field { height: 84rpx; min-height: 84rpx; line-height: 44rpx; padding: 0 22rpx; }
+textarea.field { min-height: 180rpx; line-height: 42rpx; padding: 20rpx 22rpx; }

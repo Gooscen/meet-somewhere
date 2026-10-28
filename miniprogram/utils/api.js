@@ -6,7 +6,11 @@ function call(action, data = {}) {
     config: { env: app.globalData.cloudEnvId },
     data: { action, ...data }
   }).then(({ result }) => {
-    if (!result || !result.ok) throw new Error((result && result.error) || '服务暂时不可用');
+    if (!result || !result.ok) {
+      const error = new Error((result && result.error) || '服务暂时不可用');
+      error.errCode = result && result.code;
+      throw error;
+    }
     return result.data;
   });
 }

@@ -17,7 +17,7 @@
       <view class="summary-line"><text class="muted">人均预算</text>{{data.meeting.budgetLabel}}</view>
       <view class="summary-line"><text class="muted">回应截止</text>{{data.meeting.deadlineLabel}}</view>
     </view>
-    <view class="card"><view class="row"><view><view class="mini-label">REPLIES</view><view class="card-title">大家的回复</view></view><view class="metric-number">{{data.counts.completed}}<text class="muted"> / {{data.counts.members}}</text></view></view><view class="progress-track"><view class="progress-fill" style="width: {{progressPercent}}%;"></view></view><view class="muted">{{data.counts.unanswered}} 人尚未回复时间；未回复不视为有空。</view></view>
+    <view class="card"><view class="row"><view><view class="mini-label">REPLIES</view><view class="card-title">大家的回复</view></view><view class="metric-number">{{data.counts.completed}}<text class="muted"> 人已回复 / 共 {{data.counts.members}} 人</text></view></view><view class="progress-track"><view class="progress-fill" style="width: {{progressPercent}}%;"></view></view><view class="muted">成员人数包含组织者。{{data.counts.unanswered}} 人尚未回复时间；未回复不视为有空。</view></view>
     <view wx:if="{{data.meeting.status !== 'closed'}}">
       <view class="section-head"><view class="section-title">接下来做什么</view></view>
       <view class="card"><button class="button" bindtap="profile">填写或修改我的信息</button><button class="button secondary" bindtap="candidates">候选餐厅（{{data.candidates.length}}）与评价</button><button wx:if="{{data.isOrganizer}}" class="button secondary" bindtap="compare">进入组织者比较台</button><button wx:if="{{data.meeting.selectedCandidateId}}" class="button dark" bindtap="decision">查看地点并确认参加</button><button class="button light" open-type="share">分享邀请给朋友</button></view>

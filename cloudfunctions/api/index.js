@@ -65,6 +65,9 @@ function requireMember(context) { if (!context.ownProfile) throw new Error('请�
 async function listMeetings(ownerId) {
   const profiles = (await db.collection('profiles').where({ ownerId }).limit(100).get()).data;
   const meetings = await Promise.all(profiles.map(profile => getDoc('meetings', profile.meetingId)));
+  for (const meeting of meetings.filter(Boolean)) {
+    if (meeting.status !== 'closed' && new Date(meeting.endsAt).getTime() <= Date.now()) await purgeMeeting(meeting);
+  }
   return meetings.filter(Boolean).map(meeting => ({
     _id: meeting._id, title: meeting.title, startsAt: meeting.startsAt, endsAt: meeting.endsAt,
     status: meeting.status, selectedCandidateId: meeting.selectedCandidateId,
@@ -138,7 +141,9 @@ async function saveProfile(meetingId, ownerId, input) {
     hardRestriction: cleanText(input.hardRestriction, 240), preference: cleanText(input.preference, 240),
     updatedAt: new Date().toISOString()
   };
-  await db.collection('profiles').doc(`${meetingId}_${ownerId}`).update({ data });
+  // Replace the profile so changing a location between null and an object is atomic.
+  const { _id, ...previous } = context.ownProfile;
+  await db.collection('profiles').doc(_id).set({ data: { ...previous, ...data } });
   return { saved: true };
 }
 
@@ -298,12 +303,57 @@ async function closeMeeting(meetingId, ownerId) {
   return { saved: true };
 }
 
+// Explicit developer-console action. Test members have synthetic identities and cannot log in.
+async function seedTestData(ownerId) {
+  const start = new Date(Date.now() + 48 * 3600000);
+  const end = new Date(start.getTime() + 2 * 3600000);
+  const { meetingId } = await createMeeting({
+    title: '【测试】周末朋友聚餐', startsAt: start.toISOString(), endsAt: end.toISOString(),
+    budgetMin: 80, budgetMax: 150, alternativeTime: '下周同一时间'
+  }, ownerId);
+  const now = new Date().toISOString();
+  const base = await getDoc('profiles', `${meetingId}_${ownerId}`);
+  const { _id, ...template } = base;
+  const members = [
+    { displayName: '小林（测试）', available: 'yes', budgetMax: 120, finalAttendance: 'unanswered' },
+    { displayName: '小陈（测试）', available: 'no', budgetMax: 100, hardBudgetMax: 120 },
+    { displayName: '小周（测试）', available: 'unknown', budgetMax: null },
+    { displayName: '小王（测试）', available: 'yes', budgetMax: 180, hardRestriction: '测试：饮食限制待确认' }
+  ];
+  for (let i = 0; i < members.length; i++) {
+    const testOwnerId = `test_member_${i + 1}`;
+    await db.collection('profiles').doc(`${meetingId}_${testOwnerId}`).set({ data: {
+      ...template, ...members[i], ownerId: testOwnerId, updatedAt: now
+    } });
+  }
+  const places = [
+    { name: '测试餐厅 A · 预算友好', priceMin: 80, priceMax: 100 },
+    { name: '测试餐厅 B · 中等预算', priceMin: 120, priceMax: 150 },
+    { name: '测试餐厅 C · 高预算', priceMin: 180, priceMax: 220 }
+  ];
+  for (let i = 0; i < places.length; i++) {
+    const { candidateId } = await addCandidate(meetingId, ownerId, {
+      ...places[i], cuisine: '测试菜系', infoStatus: 'pending',
+      note: '虚构餐厅，仅供测试；地图位置为示例坐标，不代表真实商户。',
+      location: { name: '上海人民广场附近（示例）', address: '测试坐标', latitude: 31.2304 + i * 0.005, longitude: 121.4737 }
+    });
+    const ratings = ['love', 'cannot', 'unseen', 'okay'];
+    for (let j = 0; j < members.length; j++) {
+      await rateCandidate(meetingId, `test_member_${j + 1}`, candidateId, {
+        rating: ratings[(j + i) % ratings.length], reason: 'budget'
+      });
+    }
+  }
+  return { meetingId, message: '已创建测试聚会：5 位成员（含你）、3 个候选餐厅；尚未定案。' };
+}
+
 exports.main = async event => {
   try {
     const ownerId = cloud.getWXContext().OPENID;
     if (!ownerId) throw new Error('请在微信中登录');
     let data;
     switch (event.action) {
+      case 'seedTestData': data = await seedTestData(ownerId); break;
       case 'listMeetings': data = await listMeetings(ownerId); break;
       case 'createMeeting': data = await createMeeting(event.input || {}, ownerId); break;
       case 'joinMeeting': data = await joinMeeting(id(event.meetingId), ownerId, event.displayName); break;
@@ -321,6 +371,7 @@ exports.main = async event => {
     }
     return { ok: true, data };
   } catch (error) {
-    return { ok: false, error: error.message || '操作失败' };
+    console.error('API action failed', event.action, error);
+    return { ok: false, error: error.message || '操作失败', code: error.errCode || error.code || '' };
   }
 };
