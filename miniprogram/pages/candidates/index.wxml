@@ -1,6 +1,7 @@
 <view class="page">
   <view class="eyebrow">一起选地点</view><view class="hero">候选餐厅</view><view class="sub page-intro">每人都可以添加候选，看看大家的意向与往返路线。</view>
-  <view wx:if="{{meeting && meeting.status === 'collecting'}}" class="feature-card"><view class="mini-label">ADD A PLACE</view><view class="feature-title"><view>有想去的店？</view><view>提出来一起看看。</view></view><button class="button" bindtap="toggleAdd">{{adding ? '收起添加表单' : '＋ 添加候选餐厅'}}</button></view>
+  <view wx:if="{{meeting && meeting.status !== 'closed'}}" class="feature-card"><view class="mini-label">ADD A PLACE</view><view class="feature-title"><view>有想去的店？</view><view>提出来一起看看。</view></view><button class="button" bindtap="toggleAdd">{{adding ? '收起添加表单' : '＋ 添加候选餐厅'}}</button></view>
+  <view wx:if="{{meeting.selectedCandidateId}}" class="hint">当前定案仍然有效；可以补充候选，组织者更换地点后会请大家重新确认。</view>
   <view wx:if="{{adding}}" class="card">
     <view class="card-title">手动添加餐厅</view>
     <text class="label">地点名称</text><input class="field" placeholder="例如 巷口小馆" value="{{name}}" data-field="name" bindinput="input" maxlength="80" />

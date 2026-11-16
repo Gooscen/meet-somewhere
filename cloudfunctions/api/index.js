@@ -1,4 +1,5 @@
 const cloud = require('wx-server-sdk');
+const crypto = require('crypto');
 const { validPoint, signature, summarize } = require('./routes');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
@@ -60,6 +61,11 @@ async function contextFor(meetingId, ownerId, requireJoined = true) {
 }
 function assertOpen(meeting) { if (meeting.status === 'closed') throw new Error('聚会已结束'); }
 function assertOrganizer(context) { if (!context.isOrganizer) throw new Error('仅组织者可操作'); }
+function revision() { return crypto.randomBytes(16).toString('hex'); }
+function timeCurrent(meeting, profile) { return !meeting.timeRevision || profile.timeRevision === meeting.timeRevision; }
+function timeReplied(meeting, profile) { return timeCurrent(meeting, profile) && (profile.timeResponded === true || (profile.timeResponded == null && profile.available !== 'unknown')); }
+function attendance(meeting, profile) { return meeting.decisionRevision && profile.decisionRevision !== meeting.decisionRevision ? 'unanswered' : (profile.finalAttendance || 'unanswered'); }
+function effectiveProfile(meeting, profile) { return timeCurrent(meeting, profile) ? profile : { ...profile, available: 'unknown', alternativeAvailability: 'unknown' }; }
 function requireMember(context) { if (!context.ownProfile) throw new Error('请先加入聚会'); }
 
 async function listMeetings(ownerId) {
@@ -123,6 +129,7 @@ async function joinMeeting(meetingId, ownerId, displayName) {
 async function saveProfile(meetingId, ownerId, input) {
   const context = await contextFor(meetingId, ownerId);
   assertOpen(context.meeting);
+  if ((input.timeRevision || '') !== (context.meeting.timeRevision || '')) throw new Error('聚会时间已更改，请返回后重新填写');
   const budgetMin = optionalNumber(input.budgetMin);
   const budgetMax = optionalNumber(input.budgetMax);
   const hardBudgetMax = optionalNumber(input.hardBudgetMax);
@@ -130,6 +137,7 @@ async function saveProfile(meetingId, ownerId, input) {
   const data = {
     displayName: requireText(input.displayName, '称呼', 24),
     available: pick(input.available, ['yes', 'no', 'unknown'], 'unknown'),
+    timeResponded: true, timeRevision: context.meeting.timeRevision || '',
     alternativeAvailability: pick(input.alternativeAvailability, ['yes', 'no', 'unknown'], 'unknown'),
     availableTimeNote: cleanText(input.availableTimeNote, 100),
     earliestArrival: dateTime(input.earliestArrival), mustLeaveAt: dateTime(input.mustLeaveAt),
@@ -150,7 +158,6 @@ async function saveProfile(meetingId, ownerId, input) {
 async function addCandidate(meetingId, ownerId, input) {
   const context = await contextFor(meetingId, ownerId);
   assertOpen(context.meeting);
-  if (context.meeting.selectedCandidateId) throw new Error('地点已确定');
   const candidates = await list('candidates', meetingId);
   if (candidates.length >= MAX_CANDIDATES) throw new Error('本次聚会最多支持 20 个候选地点');
   const place = location(input.location);
@@ -172,9 +179,9 @@ async function addCandidate(meetingId, ownerId, input) {
 async function setCandidateActive(meetingId, ownerId, candidateId, active) {
   const context = await contextFor(meetingId, ownerId);
   assertOrganizer(context); assertOpen(context.meeting);
-  if (context.meeting.selectedCandidateId) throw new Error('地点已确定');
   const candidate = await getDoc('candidates', id(candidateId));
   if (!candidate || candidate.meetingId !== meetingId) throw new Error('候选地点不存在');
+  if (!active && context.meeting.selectedCandidateId === candidateId) throw new Error('请先更换已确定的地点');
   await db.collection('candidates').doc(candidateId).update({ data: { active: Boolean(active), updatedAt: new Date().toISOString() } });
   return { saved: true };
 }
@@ -182,7 +189,6 @@ async function setCandidateActive(meetingId, ownerId, candidateId, active) {
 async function rateCandidate(meetingId, ownerId, candidateId, input) {
   const context = await contextFor(meetingId, ownerId);
   assertOpen(context.meeting);
-  if (context.meeting.selectedCandidateId) throw new Error('地点已确定');
   const candidate = await getDoc('candidates', id(candidateId));
   if (!candidate || candidate.meetingId !== meetingId || !candidate.active) throw new Error('候选地点不存在');
   const rating = pick(input.rating, ['love', 'like', 'okay', 'dislike', 'cannot', 'unseen'], null);
@@ -200,14 +206,23 @@ async function getMeeting(meetingId, ownerId) {
   const [profiles, candidates, ratings, routeSummaries] = await Promise.all([
     list('profiles', meetingId), list('candidates', meetingId), list('ratings', meetingId), list('routeSummaries', meetingId)
   ]);
-  const counts = { members: profiles.length, completed: profiles.filter(p => p.available !== 'unknown').length,
-    unanswered: profiles.filter(p => p.available === 'unknown').length };
+  const replied = p => timeReplied(context.meeting, p);
+  const counts = { members: profiles.length, completed: profiles.filter(replied).length,
+    unanswered: profiles.filter(p => !replied(p)).length,
+    timeYes: profiles.filter(p => replied(p) && p.available === 'yes').length,
+    timeNo: profiles.filter(p => replied(p) && p.available === 'no').length,
+    timeUnknown: profiles.filter(p => replied(p) && p.available === 'unknown').length,
+    alternativeYes: profiles.filter(p => replied(p) && p.alternativeAvailability === 'yes').length,
+    alternativeNo: profiles.filter(p => replied(p) && p.alternativeAvailability === 'no').length,
+    alternativeUnknown: profiles.filter(p => !replied(p) || !p.alternativeAvailability || p.alternativeAvailability === 'unknown').length,
+    routesProvided: profiles.filter(p => p.departure && p.returnTo).length,
+    attendancePending: profiles.filter(p => attendance(context.meeting, p) === 'unanswered').length };
   const publicCandidates = candidates.map(candidate => {
     const candidateRatings = ratings.filter(r => r.candidateId === candidate._id);
     const distribution = { love: 0, like: 0, okay: 0, dislike: 0, cannot: 0, unseen: 0, unrated: profiles.length - candidateRatings.length };
     candidateRatings.forEach(r => { distribution[r.rating]++; });
     const stored = routeSummaries.find(s => s.candidateId === candidate._id);
-    const valid = stored && stored.signature === signature(context.meeting, candidate, profiles);
+    const valid = stored && stored.signature === signature(context.meeting, candidate, profiles.map(p => effectiveProfile(context.meeting, p)));
     return {
       _id: candidate._id, name: candidate.name, location: candidate.location,
       priceMin: candidate.priceMin, priceMax: candidate.priceMax, cuisine: candidate.cuisine,
@@ -215,12 +230,17 @@ async function getMeeting(meetingId, ownerId) {
       active: candidate.active, distribution,
       myRating: (candidateRatings.find(r => r.ownerId === ownerId) || {}).rating || null,
       myReason: (candidateRatings.find(r => r.ownerId === ownerId) || {}).reason || '',
-      routeSummary: valid ? stored.summary : null, routeStale: !valid
+      routeSummary: valid ? stored.summary : null, routeStale: Boolean(stored && !valid)
     };
   });
+  const activeCandidates = publicCandidates.filter(c => c.active);
+  counts.evaluationPending = profiles.filter(p => activeCandidates.some(c => {
+    const rating = ratings.find(r => r.candidateId === c._id && r.ownerId === p.ownerId);
+    return !rating || rating.rating === 'unseen';
+  })).length;
   const members = profiles.map(p => ({
-    displayName: p.displayName, informationComplete: p.available !== 'unknown', finalAttendance: p.finalAttendance,
-    alternativeAvailability: p.alternativeAvailability || 'unknown',
+    displayName: p.displayName, informationComplete: replied(p), available: replied(p) ? p.available : 'unanswered', finalAttendance: attendance(context.meeting, p),
+    alternativeAvailability: replied(p) ? p.alternativeAvailability || 'unknown' : 'unknown',
     availableTimeNote: context.isOrganizer || p.ownerId === ownerId ? p.availableTimeNote || '' : '',
     departureName: p.departure && (p.ownerId === ownerId || p.departureVisibility === 'members' ||
       (context.isOrganizer && p.departureVisibility === 'organizer')) ? p.departure.name : '',
@@ -232,8 +252,9 @@ async function getMeeting(meetingId, ownerId) {
       endsAt: context.meeting.endsAt, alternativeTime: context.meeting.alternativeTime,
       responseDeadline: context.meeting.responseDeadline, budgetMin: context.meeting.budgetMin,
       budgetMax: context.meeting.budgetMax, status: context.meeting.status,
-      selectedCandidateId: context.meeting.selectedCandidateId, decisionNote: context.meeting.decisionNote },
-    isOrganizer: context.isOrganizer, ownProfile: context.ownProfile, counts, members, candidates: publicCandidates,
+      selectedCandidateId: context.meeting.selectedCandidateId, decisionNote: context.meeting.decisionNote,
+      timeRevision: context.meeting.timeRevision || '', decisionRevision: context.meeting.decisionRevision || '' },
+    isOrganizer: context.isOrganizer, ownProfile: { ...effectiveProfile(context.meeting, context.ownProfile), finalAttendance: attendance(context.meeting, context.ownProfile), timeResponded: replied(context.ownProfile) }, counts, members, candidates: publicCandidates,
     routesConfigured: Boolean(process.env.TENCENT_MAP_KEY)
   };
 }
@@ -243,7 +264,7 @@ async function refreshRoutes(meetingId, ownerId, candidateId) {
   assertOrganizer(context); assertOpen(context.meeting);
   const candidate = await getDoc('candidates', id(candidateId));
   if (!candidate || candidate.meetingId !== meetingId || !candidate.active) throw new Error('候选地点不存在');
-  const profiles = await list('profiles', meetingId);
+  const profiles = (await list('profiles', meetingId)).map(p => effectiveProfile(context.meeting, p));
   const marker = signature(context.meeting, candidate, profiles);
   const summary = await summarize(context.meeting, candidate, profiles);
   await db.collection('routeSummaries').doc(`${meetingId}_${candidateId}`).set({ data: {
@@ -265,7 +286,9 @@ async function editMeeting(meetingId, ownerId, input) {
   const budgetMin = optionalNumber(input.budgetMin);
   const budgetMax = optionalNumber(input.budgetMax);
   if (budgetMin !== null && budgetMax !== null && budgetMin > budgetMax) throw new Error('预算范围有误');
+  const timeChanged = startsAt !== context.meeting.startsAt || endsAt !== context.meeting.endsAt || cleanText(input.alternativeTime, 100) !== (context.meeting.alternativeTime || '');
   await db.collection('meetings').doc(meetingId).update({ data: {
+    ...(timeChanged ? { timeRevision: revision() } : {}),
     title: requireText(input.title, '聚会名称', 60), startsAt, endsAt, responseDeadline,
     alternativeTime: cleanText(input.alternativeTime, 100), budgetMin, budgetMax,
     updatedAt: new Date().toISOString()
@@ -273,26 +296,30 @@ async function editMeeting(meetingId, ownerId, input) {
   return { saved: true };
 }
 
-async function finalize(meetingId, ownerId, candidateId, note) {
+async function finalize(meetingId, ownerId, candidateId, note, decisionRevision) {
   const context = await contextFor(meetingId, ownerId);
   assertOrganizer(context); assertOpen(context.meeting);
-  if (context.meeting.selectedCandidateId) throw new Error('地点已经确定');
+  if ((decisionRevision || '') !== (context.meeting.decisionRevision || '')) throw new Error('聚会决定已变更，请返回后重新选择');
+  const changing = Boolean(context.meeting.selectedCandidateId);
+  if (changing && context.meeting.selectedCandidateId === candidateId) throw new Error('请选择其他餐厅');
+  if (changing && !cleanText(note, 240)) throw new Error('请填写更换地点的说明');
   const candidate = await getDoc('candidates', id(candidateId));
   if (!candidate || candidate.meetingId !== meetingId || !candidate.active) throw new Error('请选择有效候选地点');
   await db.collection('meetings').doc(meetingId).update({ data: {
-    selectedCandidateId: candidateId, decisionNote: cleanText(note, 240), status: 'confirming',
+    selectedCandidateId: candidateId, decisionNote: cleanText(note, 240), decisionRevision: revision(), status: 'confirming',
     updatedAt: new Date().toISOString()
   } });
   return { saved: true };
 }
 
-async function confirm(meetingId, ownerId, answer) {
+async function confirm(meetingId, ownerId, answer, decisionRevision) {
   const context = await contextFor(meetingId, ownerId);
   assertOpen(context.meeting);
   if (!context.meeting.selectedCandidateId) throw new Error('地点尚未确定');
+  if ((decisionRevision || '') !== (context.meeting.decisionRevision || '')) throw new Error('地点已更改，请返回后重新确认');
   const finalAttendance = pick(answer, ['yes', 'no', 'maybe'], null);
   if (!finalAttendance) throw new Error('请选择参加状态');
-  await db.collection('profiles').doc(`${meetingId}_${ownerId}`).update({ data: { finalAttendance, updatedAt: new Date().toISOString() } });
+  await db.collection('profiles').doc(`${meetingId}_${ownerId}`).update({ data: { finalAttendance, decisionRevision: context.meeting.decisionRevision || '', updatedAt: new Date().toISOString() } });
   return { saved: true };
 }
 
@@ -364,8 +391,8 @@ exports.main = async event => {
       case 'rateCandidate': data = await rateCandidate(id(event.meetingId), ownerId, id(event.candidateId), event.input || {}); break;
       case 'refreshRoutes': data = await refreshRoutes(id(event.meetingId), ownerId, id(event.candidateId)); break;
       case 'editMeeting': data = await editMeeting(id(event.meetingId), ownerId, event.input || {}); break;
-      case 'finalize': data = await finalize(id(event.meetingId), ownerId, id(event.candidateId), event.note); break;
-      case 'confirm': data = await confirm(id(event.meetingId), ownerId, event.answer); break;
+      case 'finalize': data = await finalize(id(event.meetingId), ownerId, id(event.candidateId), event.note, event.decisionRevision); break;
+      case 'confirm': data = await confirm(id(event.meetingId), ownerId, event.answer, event.decisionRevision); break;
       case 'closeMeeting': data = await closeMeeting(id(event.meetingId), ownerId); break;
       default: throw new Error('未知操作');
     }

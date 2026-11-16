@@ -33,7 +33,12 @@ Page({
     wx.showModal({ title: '结束本次聚会？', content: '结束后会清除本次保存的精确起终点、个人限制和路线摘要。',
       success: result => { if (result.confirm) call('closeMeeting', { meetingId: this.data.id }).then(() => this.load()).catch(failure); } });
   },
-  onShareAppMessage() {
+  onShareAppMessage(event) {
+    const kind = event && event.target && event.target.dataset.kind;
+    const data = this.data.data;
+    if (data && kind === 'decision' && data.meeting.selectedCandidateId) return { title: `${data.meeting.title}：${data.meeting.startsLabel}，地点 ${this.data.selectedName}，请确认参加`, path: `/pages/meeting/index?id=${this.data.id}` };
+    if (data && kind === 'ratings') return { title: `${data.meeting.title}：已有 ${data.candidates.filter(c => c.active).length} 家候选餐厅，请来评价`, path: `/pages/meeting/index?id=${this.data.id}` };
+    if (data && kind === 'replies') return { title: `${data.meeting.title}：${data.counts.unanswered} 人尚未回复时间，请来看看`, path: `/pages/meeting/index?id=${this.data.id}` };
     const title = this.data.data ? this.data.data.meeting.title : this.data.invite ? this.data.invite.title : '哪儿见';
     return { title: `一起商量去哪儿见：${title}`, path: `/pages/meeting/index?id=${this.data.id}` };
   }

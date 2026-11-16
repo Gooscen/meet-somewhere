@@ -16,6 +16,7 @@
     "backgroundColor": "#F4F3F1"
   },
   "style": "v2",
+  "lazyCodeLoading": "requiredComponents",
   "permission": {
     "scope.userLocation": { "desc": "用于你主动选择出发地或散场后目的地，计算本次聚会路线" }
   },

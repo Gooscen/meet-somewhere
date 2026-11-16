@@ -80,6 +80,9 @@ async function summarize(meeting, candidate, profiles) {
   const routeStates = [];
   let hardConflictCount = 0;
   let hardUnknownCount = 0;
+  let timeConflictCount = 0;
+  let hardBudgetConflictCount = 0;
+  let returnConflictCount = 0;
   let budgetFitCount = 0;
   let budgetUnknownCount = 0;
   let budgetConflictCount = 0;
@@ -105,11 +108,15 @@ async function summarize(meeting, candidate, profiles) {
     if (go.status === 'ready') outbound.push(go.minutes);
     if (back.status === 'ready') inbound.push(back.minutes);
     if (go.status === 'ready' && back.status === 'ready') roundtrip.push(go.minutes + back.minutes);
-    let conflict = profile.available === 'no' ||
+    const timeConflict = profile.available === 'no' ||
       (profile.earliestArrival && profile.earliestArrival > meeting.startsAt) ||
       (profile.mustLeaveAt && profile.mustLeaveAt < meeting.endsAt);
-    if (Number.isFinite(profile.hardBudgetMax) && Number.isFinite(candidate.priceMin) && candidate.priceMin > profile.hardBudgetMax) conflict = true;
-    if (profile.maxReturnBy && back.status === 'ready' && new Date(meeting.endsAt).getTime() + back.minutes * 60000 > new Date(profile.maxReturnBy).getTime()) conflict = true;
+    const budgetConflict = Number.isFinite(profile.hardBudgetMax) && Number.isFinite(candidate.priceMin) && candidate.priceMin > profile.hardBudgetMax;
+    const returnConflict = profile.maxReturnBy && back.status === 'ready' && new Date(meeting.endsAt).getTime() + back.minutes * 60000 > new Date(profile.maxReturnBy).getTime();
+    if (timeConflict) timeConflictCount++;
+    if (budgetConflict) hardBudgetConflictCount++;
+    if (returnConflict) returnConflictCount++;
+    const conflict = timeConflict || budgetConflict || returnConflict;
     if (conflict) hardConflictCount++;
     else if (profile.available === 'unknown' || profile.hardRestriction ||
       (profile.hardBudgetMax !== null && profile.hardBudgetMax !== undefined && candidate.priceMin === null) ||
@@ -129,7 +136,10 @@ async function summarize(meeting, candidate, profiles) {
     returnKnown: inbound.length,
     roundtripKnown: roundtrip.length,
     routeUnknownCount: routeStates.filter(pair => pair[0] !== 'ready' || pair[1] !== 'ready').length,
-    hardConflictCount, hardUnknownCount, budgetFitCount, budgetConflictCount, budgetUnknownCount, preferenceCount,
+    hardConflictCount, hardUnknownCount,
+    timeConflictCount: profiles.length >= 3 ? timeConflictCount : null,
+    hardBudgetConflictCount: profiles.length >= 3 ? hardBudgetConflictCount : null,
+    returnConflictCount: profiles.length >= 3 ? returnConflictCount : null, budgetFitCount, budgetConflictCount, budgetUnknownCount, preferenceCount,
     outboundAverage: safe ? average(outbound) : null,
     returnAverage: safe ? average(inbound) : null,
     roundtripAverage: safe ? average(roundtrip) : null,

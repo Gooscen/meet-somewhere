@@ -2,6 +2,7 @@
   <view class="eyebrow">组织者比较台</view><view class="hero"><view>一起找到</view><view>更合适的地点。</view></view><view class="sub page-intro">先看硬性限制，再比较意向、预算与往返路线。</view>
   <view class="card"><view class="mini-label">SORT BY</view><view class="card-title">排序视角</view><picker mode="selector" range="{{views}}" range-key="label" value="{{viewIndex}}" bindchange="changeView"><view class="field">{{views[viewIndex].label}} ▾</view></picker><view class="hint">排序依据：{{explanation}}</view><view class="sub">所有路线均为估算。地点意向不等于最终参加承诺。</view></view>
   <view wx:if="{{!routesConfigured}}" class="hint">腾讯位置服务尚未配置。路线显示为未计算；仍可查看预算、时间与意向。</view>
+  <view wx:if="{{candidates.length}}" class="card"><button class="button secondary" loading="{{refreshingAll}}" disabled="{{refreshingId || refreshingAll}}" bindtap="refreshAll">更新全部餐厅的路线与可行性</button><view wx:if="{{refreshingAll}}" class="muted">正在更新 {{refreshProgress}}，请保持此页面打开。</view></view>
   <view wx:if="{{!candidates.length}}" class="empty">暂无正在考虑的地点。</view>
   <view class="section-head"><view class="section-title">推荐排序</view><view class="section-meta">{{candidates.length}} 家候选</view></view>
   <view wx:for="{{candidates}}" wx:key="_id" class="card">
@@ -15,6 +16,7 @@
       <view>预算：{{item.routeSummary.budgetFitCount}} 人范围内 · {{item.routeSummary.budgetConflictCount}} 人超出范围 · {{item.routeSummary.budgetUnknownCount}} 人待核实</view>
       <view wx:if="{{item.routeSummary.preferenceCount}}" class="muted">{{item.routeSummary.preferenceCount}} 位成员另有一般偏好；请参考意向评价，必要时向本人确认。</view>
       <view wx:if="{{item.routeSummary.hardConflictCount}}" class="hint">{{item.routeSummary.hardConflictCount}} 位成员有已知硬性冲突，不能被意向抵消。</view>
+      <view wx:if="{{item.routeSummary.timeConflictCount}}" class="hint">{{item.routeSummary.timeConflictCount}} 位成员的时间有冲突，请联系确认或调整聚会时间。</view><view wx:if="{{item.routeSummary.hardBudgetConflictCount}}" class="hint">{{item.routeSummary.hardBudgetConflictCount}} 位成员的预算硬上限可能低于这家店的价格。</view><view wx:if="{{item.routeSummary.returnConflictCount}}" class="hint">{{item.routeSummary.returnConflictCount}} 位成员的回程时间可能不满足要求，请联系确认。</view>
       <view wx:if="{{item.routeSummary.hardUnknownCount}}" class="hint">{{item.routeSummary.hardUnknownCount}} 位成员的硬性条件仍需本人确认；具体限制仅本人可见。</view>
       <view>去程平均：{{item.outboundLabel}}（{{item.routeSummary.outboundKnown}} / {{item.routeSummary.totalMembers}} 已知）</view>
       <view>回程平均：{{item.returnLabel}}（{{item.routeSummary.returnKnown}} / {{item.routeSummary.totalMembers}} 已知）</view>
@@ -24,9 +26,9 @@
       <view wx:if="{{item.routeSummary.routeUnknownCount}}" class="hint">{{item.routeSummary.routeUnknownCount}} 位成员往返路线未提供或暂时无法计算；未知不计作 0 分钟。</view>
       <view wx:if="{{!item.routeSummary.privacyThresholdMet}}" class="hint">完整往返路线少于 3 人，仅显示人数，不展示可反推个人的时长统计。</view>
     </view>
-    <view wx:else class="hint">路线、预算和硬性限制摘要尚未计算，或信息变化后需要更新。</view>
+    <view wx:else class="hint">{{item.routeStale ? '成员情况或聚会信息已变化，请更新路线与可行性。' : '尚未计算路线、预算和硬性限制摘要。'}}</view>
     <view class="muted">路线估算更新：{{item.updatedLabel}}</view>
-    <button class="button secondary" data-id="{{item._id}}" loading="{{refreshingId === item._id}}" bindtap="refresh">更新这家店的路线与可行性</button>
-    <button wx:if="{{meeting.status === 'collecting'}}" class="button" data-id="{{item._id}}" bindtap="select">考虑选定这家店</button>
+    <button class="button secondary" data-id="{{item._id}}" loading="{{refreshingId === item._id}}" disabled="{{refreshingAll || refreshingId}}" bindtap="refresh">更新这家店的路线与可行性</button>
+    <button wx:if="{{meeting.status !== 'closed' && meeting.selectedCandidateId !== item._id}}" class="button" data-id="{{item._id}}" bindtap="select">{{meeting.selectedCandidateId ? '考虑更换为这家店' : '考虑选定这家店'}}</button>
   </view>
 </view>

@@ -29,7 +29,7 @@ function compare(a, b, key) {
 }
 Page({
   data: { id: '', candidates: [], viewIndex: 0, views: VIEWS, explanation: VIEWS[0].explanation,
-    routesConfigured: false, refreshingId: '', meeting: null },
+    routesConfigured: false, refreshingId: '', refreshingAll: false, refreshProgress: '', meeting: null },
   onLoad(options) { this.setData({ id: options.id || '' }); },
   onShow() { if (this.data.id) this.load(); },
   load() {
@@ -61,11 +61,27 @@ Page({
       this.setData({ candidates: this.decorate(this.data.candidates) }));
   },
   refresh(event) {
-    if (this.data.refreshingId) return;
+    if (this.data.refreshingId || this.data.refreshingAll) return;
     const candidateId = event.currentTarget.dataset.id;
     this.setData({ refreshingId: candidateId });
     call('refreshRoutes', { meetingId: this.data.id, candidateId }).then(() => this.load())
       .catch(failure).finally(() => this.setData({ refreshingId: '' }));
+  },
+  async refreshAll() {
+    if (this.data.refreshingId || this.data.refreshingAll) return;
+    const candidates = this.data.candidates.slice();
+    if (!candidates.length) return;
+    this.setData({ refreshingAll: true, refreshProgress: `0 / ${candidates.length}` });
+    const failed = [];
+    for (let i = 0; i < candidates.length; i++) {
+      try { await call('refreshRoutes', { meetingId: this.data.id, candidateId: candidates[i]._id }); }
+      catch (_) { failed.push(candidates[i].name); }
+      this.setData({ refreshProgress: `${i + 1} / ${candidates.length}` });
+    }
+    this.setData({ refreshingAll: false });
+    this.load();
+    if (failed.length) wx.showModal({ title: '部分更新失败', content: `请单独重试：${failed.join('、')}`, showCancel: false });
+    else wx.showToast({ title: '更新完成', icon: 'success' });
   },
   select(event) { navigate('decision', { id: this.data.id, candidateId: event.currentTarget.dataset.id }); }
 });
